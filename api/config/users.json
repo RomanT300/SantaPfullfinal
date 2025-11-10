@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "id": "admin-001",
+      "email": "admin@ptar.local",
+      "password": "$2a$10$qWRW2qFofiT.Iy.OK76VCOF.hMAOH7a6JPXEXsPCxmbqecOnzLmki",
+      "name": "Administrador",
+      "role": "admin"
+    },
+    {
+      "id": "operator-001",
+      "email": "operador@ptar.local",
+      "password": "$2a$10$6PW8VFtBweYMGlT/fjVf1uR0Njl5h2ITJ9fgnOOzktG48PFcDESWy",
+      "name": "Operador",
+      "role": "standard"
+    }
+  ]
+}

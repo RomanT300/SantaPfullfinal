@@ -1,0 +1,46 @@
+# Frontend Dockerfile - Production Ready
+FROM node:18-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies for better-sqlite3 (required by shared package.json)
+RUN apk add --no-cache python3 make g++
+
+# Copy package files
+COPY package*.json pnpm-lock.yaml ./
+
+# Install pnpm and dependencies
+RUN npm install -g pnpm
+RUN pnpm install --frozen-lockfile
+
+# Copy configuration files
+COPY index.html vite.config.ts tsconfig.json tailwind.config.js postcss.config.js ./
+
+# Copy source code
+COPY src ./src
+COPY public ./public
+
+# Build the application for production
+RUN pnpm run build
+
+# Production stage with nginx
+FROM nginx:alpine
+
+# Create non-root user
+RUN addgroup -g 1001 -S nginx && adduser -S nginx -u 1001 || true
+
+# Copy built files from builder
+COPY --from=builder /app/dist /usr/share/nginx/html
+
+# Copy nginx configuration
+COPY nginx/nginx.conf /etc/nginx/nginx.conf
+
+# Expose port
+EXPOSE 80
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD wget --quiet --tries=1 --spider http://localhost/ || exit 1
+
+# Start nginx
+CMD ["nginx", "-g", "daemon off;"]
