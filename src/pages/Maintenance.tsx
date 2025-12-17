@@ -10,6 +10,7 @@ type Maint = {
   scheduled_date: string
   completed_date?: string
   status: 'pending' | 'completed' | 'overdue'
+  isPlaceholder?: boolean
 }
 
 type Emergency = {
@@ -45,7 +46,10 @@ export default function Maintenance() {
   const availableYears = useMemo(() => {
     const years = new Set<number>()
     tasks.forEach(t => years.add(new Date(t.scheduled_date).getFullYear()))
-    if (years.size === 0) years.add(currentYear)
+    // Siempre incluir los últimos 2 años y próximos 3 años
+    for (let y = currentYear - 2; y <= currentYear + 3; y++) {
+      years.add(y)
+    }
     return Array.from(years).sort((a,b)=>a-b)
   }, [tasks, currentYear])
 
@@ -147,70 +151,81 @@ export default function Maintenance() {
   // Emergencias: manejado en /emergencies
 
   const COLUMN_WIDTH = 60
-  const monthlyDemoTasks = useMemo(() => {
-    // Genera UN mantenimiento (demo) por planta detectada en tasks, para el año seleccionado
-    const plantIds = Array.from(new Set(tasks.map(t => t.plant_id)))
-    const items: Maint[] = []
-    plantIds.forEach(pid => {
-      const start = new Date(selectedYear, 6, 1) // 1 de julio
-      const id = `demo-${pid}-${selectedYear}`
-      items.push({
-        id,
-        plant_id: pid,
-        task_type: 'general',
-        description: `Mantenimiento completo`,
-        scheduled_date: start.toISOString(),
-        status: 'pending',
-      })
-    })
-    return items
-  }, [tasks, selectedYear])
+  // Generar automáticamente una tarea por cada planta para el año seleccionado
+  const yearTasks = useMemo(() => {
+    const existingMap = new Map<string, Maint>()
 
-  const sourceTasks = useMemo(() => showYearExample ? [...tasks, ...monthlyDemoTasks] : tasks, [tasks, monthlyDemoTasks, showYearExample])
+    // Primero, mapear las tareas existentes para este año
+    tasks.forEach(t => {
+      const taskYear = new Date(t.scheduled_date).getFullYear()
+      if (taskYear === selectedYear) {
+        existingMap.set(t.plant_id, t)
+      }
+    })
+
+    // Crear una tarea por cada planta (usar existente o crear placeholder)
+    return plants.map(p => {
+      if (existingMap.has(p.id)) {
+        return existingMap.get(p.id)!
+      }
+      // Placeholder para plantas sin tarea este año
+      return {
+        id: `placeholder-${p.id}-${selectedYear}`,
+        plant_id: p.id,
+        task_type: 'general' as const,
+        description: 'Mantenimiento completo',
+        scheduled_date: new Date(selectedYear, 6, 1).toISOString(), // Default: 1 julio
+        status: 'pending' as const,
+        isPlaceholder: true
+      }
+    }).filter(t => t !== null) as Maint[]
+  }, [plants, tasks, selectedYear])
 
   const ganttTasks: Task[] = useMemo(() => {
     const today = new Date()
+    const todayStr = today.toISOString().slice(0, 10)
     const addDays = (date: Date, days: number) => new Date(date.getTime() + days * 86400000)
     const yearStart = new Date(selectedYear, 0, 1)
     const yearEnd = new Date(selectedYear, 11, 31, 23, 59, 59, 999)
-    const filtered = sourceTasks.filter(t => {
-      const d = new Date(t.scheduled_date)
-      if (d.getFullYear() !== selectedYear) return false
+
+    const filtered = yearTasks.filter(t => {
       if (selectedPlants.length > 0 && !selectedPlants.includes(t.plant_id)) return false
       return true
     })
+
     const rows: Task[] = []
     filtered.forEach(t => {
-      const startPlan = new Date(t.scheduled_date)
+      // Usar fecha editada si existe, sino usar la fecha guardada
+      const scheduledDateStr = editDates[t.id]?.scheduled ?? t.scheduled_date.slice(0, 10)
+      const startPlan = new Date(scheduledDateStr)
       const dDays = plantDurations[t.plant_id] ?? durationDays
       const endPlan = addDays(startPlan, Math.max(1, dDays))
       const clampedStartPlan = startPlan < yearStart ? yearStart : startPlan
       const clampedEndPlan = endPlan > yearEnd ? yearEnd : endPlan
+
+      // Determinar color según estado
+      const isCompleted = t.status === 'completed' || !!doneMap[t.id]
+      const isOverdue = !isCompleted && scheduledDateStr < todayStr
+
+      let backgroundColor = '#60a5fa' // Azul: pendiente
+      if (isCompleted) {
+        backgroundColor = '#16a34a' // Verde: completado
+      } else if (isOverdue) {
+        backgroundColor = '#ef4444' // Rojo: vencido
+      }
+
       rows.push({
         start: clampedStartPlan,
         end: clampedEndPlan,
-        name: `Planificación · Mantenimiento completo`,
+        name: `${plantNameMap[t.plant_id] || t.plant_id} - Mantenimiento`,
         id: `${t.id}-plan`,
         type: 'task',
-        progress: 0,
-        styles: { backgroundColor: '#60a5fa', progressColor: '#60a5fa', progressSelectedColor: '#60a5fa' },
-      })
-      const startExec = new Date(t.scheduled_date)
-      const endExecRaw = t.completed_date ? new Date(t.completed_date) : today
-      const clampedStartExec = startExec < yearStart ? yearStart : startExec
-      const clampedEndExec = endExecRaw > yearEnd ? yearEnd : endExecRaw
-      rows.push({
-        start: clampedStartExec,
-        end: clampedEndExec,
-        name: `Ejecución · Mantenimiento completo`,
-        id: `${t.id}-exec`,
-        type: 'task',
-        progress: (t.status === 'completed' || !!doneMap[t.id]) ? 100 : 0,
-        styles: { backgroundColor: '#16a34a', progressColor: '#16a34a', progressSelectedColor: '#16a34a' },
+        progress: isCompleted ? 100 : 0,
+        styles: { backgroundColor, progressColor: backgroundColor, progressSelectedColor: backgroundColor },
       })
     })
     return rows
-  }, [sourceTasks, doneMap, selectedYear, selectedPlants, durationDays, plantDurations])
+  }, [yearTasks, doneMap, selectedYear, selectedPlants, durationDays, plantDurations, plantNameMap, editDates])
 
   const todayLineOffset = useMemo(() => {
     const today = new Date()
@@ -221,12 +236,51 @@ export default function Maintenance() {
     return weekIndex * COLUMN_WIDTH
   }, [selectedYear])
 
-  const toggleDone = async (id: string) => {
-    const isDone = !!doneMap[id]
+  const toggleDone = async (taskOrId: Maint | string) => {
+    const task = typeof taskOrId === 'string' ? yearTasks.find(t => t.id === taskOrId) : taskOrId
+    if (!task) return
+
+    // Si es placeholder, primero crear la tarea
+    if (task.isPlaceholder) {
+      try {
+        const res = await fetch('/api/maintenance/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            plantId: task.plant_id,
+            type: task.task_type,
+            scheduledDate: task.scheduled_date,
+            description: task.description
+          }),
+        })
+        const json = await res.json()
+        if (!json.success) throw new Error(json.error || 'Error')
+
+        // Marcar inmediatamente como completado
+        const newId = json.data.id
+        const res2 = await fetch(`/api/maintenance/tasks/${newId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ status: 'completed', completedDate: new Date().toISOString().slice(0,10) }),
+        })
+        const json2 = await res2.json()
+        if (!json2.success) throw new Error(json2.error || 'Error')
+
+        await reloadTasks()
+      } catch (e: any) {
+        alert(`Error al guardar: ${e.message}`)
+      }
+      return
+    }
+
+    // Tarea existente: toggle completed/pending
+    const isDone = !!doneMap[task.id]
     const completedDate = isDone ? null : new Date().toISOString().slice(0,10)
     const status = isDone ? 'pending' : 'completed'
     try {
-      const res = await fetch(`/api/maintenance/tasks/${id}`, {
+      const res = await fetch(`/api/maintenance/tasks/${task.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -234,39 +288,50 @@ export default function Maintenance() {
       })
       const json = await res.json()
       if (!json.success) throw new Error(json.error || 'Error')
-      // Update local task row
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: status as any, completed_date: completedDate || undefined } : t))
+      setTasks(prev => prev.map(t => t.id === task.id ? { ...t, status: status as any, completed_date: completedDate || undefined } : t))
       setDoneMap(prev => {
         const next = { ...prev }
-        if (isDone) delete next[id]; else next[id] = new Date().toISOString()
+        if (isDone) delete next[task.id]; else next[task.id] = new Date().toISOString()
         localStorage.setItem('maintenance_done', JSON.stringify(next))
         return next
       })
-    } catch {
-      // Optimista en local si backend falla
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, status: status as any, completed_date: completedDate || undefined } : t))
-      setDoneMap(prev => {
-        const next = { ...prev }
-        if (isDone) delete next[id]; else next[id] = new Date().toISOString()
-        localStorage.setItem('maintenance_done', JSON.stringify(next))
-        return next
-      })
+    } catch (e: any) {
+      alert(`Error: ${e.message}`)
     }
   }
 
-  const updateScheduledDate = async (id: string, date: string) => {
+  const updateScheduledDate = async (task: Maint, date: string) => {
     try {
-      const res = await fetch(`/api/maintenance/tasks/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ scheduledDate: date }),
-      })
-      const json = await res.json()
-      if (!json.success) throw new Error(json.error || 'Error')
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, scheduled_date: date } : t))
-    } catch {
-      setTasks(prev => prev.map(t => t.id === id ? { ...t, scheduled_date: date } : t))
+      // Si es placeholder, crear nueva tarea
+      if (task.isPlaceholder) {
+        const res = await fetch('/api/maintenance/tasks', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({
+            plantId: task.plant_id,
+            type: task.task_type,
+            scheduledDate: date,
+            description: task.description
+          }),
+        })
+        const json = await res.json()
+        if (!json.success) throw new Error(json.error || 'Error')
+        await reloadTasks()
+      } else {
+        // Actualizar tarea existente
+        const res = await fetch(`/api/maintenance/tasks/${task.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ scheduledDate: date }),
+        })
+        const json = await res.json()
+        if (!json.success) throw new Error(json.error || 'Error')
+        setTasks(prev => prev.map(t => t.id === task.id ? { ...t, scheduled_date: date } : t))
+      }
+    } catch (e: any) {
+      alert(`Error al guardar: ${e.message}`)
     }
   }
 
@@ -327,13 +392,11 @@ export default function Maintenance() {
   }, [tasks, doneMap])
 
   const planningRows = useMemo(() => {
-    return complianceRows.filter(r => {
-      const d = new Date(r.scheduled_date)
-      if (d.getFullYear() !== selectedYear) return false
+    return yearTasks.filter(r => {
       if (selectedPlants.length > 0 && !selectedPlants.includes(r.plant_id)) return false
       return true
     })
-  }, [complianceRows, selectedYear, selectedPlants])
+  }, [yearTasks, selectedPlants])
 
   const executedRows = useMemo(() => {
     return complianceRows.filter(r => {
@@ -437,141 +500,61 @@ export default function Maintenance() {
                   })}
                 </div>
               </div>
-              <label className="ml-4 flex items-center gap-2 bg-white dark:bg-gray-800 rounded border px-3 py-2">
-                <input type="checkbox" checked={showYearExample} onChange={e=>setShowYearExample(e.target.checked)} />
-                <span className="text-sm">Ver ejemplo (1 mantenimiento por planta)</span>
-              </label>
-              {isAdmin && (
-                <button
-                  className="ml-2 px-3 py-1 rounded border bg-white dark:bg-gray-800"
-                  onClick={async ()=>{
-                    try {
-                      const res = await fetch('/api/maintenance/tasks/generate-monthly', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        credentials: 'include',
-                        body: JSON.stringify({ year: selectedYear }),
-                      })
-                      const json = await res.json()
-                      if (!json.success) throw new Error(json.error || 'Error')
-                      setShowYearExample(false)
-                      await reloadTasks()
-                    } catch (e) {
-                      // sin bloqueo, se mantiene la vista
-                    }
-                  }}
-                >Insertar ejemplo en BD (1 por planta)</button>
-              )}
             </div>
-            <div className="text-sm font-semibold mb-2">Planificación</div>
+            <div className="text-sm font-semibold mb-2">Mantenimientos {selectedYear}</div>
             <div className="overflow-x-auto">
               <table className="min-w-full text-sm">
                 <thead>
-                  <tr className="text-left">
-                    <th className="p-2">Planta</th>
-                    <th className="p-2">Tarea</th>
-                    <th className="p-2">Programado</th>
-                    <th className="p-2">Acción</th>
+                  <tr className="text-left bg-gray-50 dark:bg-gray-700">
+                    <th className="p-3">Planta</th>
+                    <th className="p-3">Fecha Programada</th>
+                    <th className="p-3 text-center">Realizado</th>
+                    <th className="p-3 text-center">Estado</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {planningRows.map(row => (
-                    <tr key={row.id} className="border-t">
-                      <td className="p-2">{plantNameMap[row.plant_id] || row.plant_id}</td>
-                      <td className="p-2">Mantenimiento completo</td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="date"
-                            value={editDates[row.id]?.scheduled ?? row.scheduled_date.slice(0,10)}
-                            onChange={e => setEditDates(prev => ({ ...prev, [row.id]: { ...(prev[row.id]||{}), scheduled: e.target.value } }))}
-                            disabled={!isAdmin}
-                            className="px-2 py-1 rounded border bg-white dark:bg-gray-800"
-                          />
-                          <button className="px-2 py-1 rounded border" disabled={!isAdmin} onClick={() => updateScheduledDate(row.id, (editDates[row.id]?.scheduled ?? row.scheduled_date.slice(0,10)))}>
-                            Guardar
-                          </button>
-                          {!isAdmin && (
-                            <span className="text-xs text-gray-500">Solo Admin edita planificación</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-2">
-                        <button className="px-2 py-1 rounded border" disabled={!isAdmin} onClick={() => deleteTask(row.id)}>
-                          Eliminar
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div className="mt-6">
-            <div className="text-sm font-semibold mb-2">Ejecutado</div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left">
-                    <th className="p-2">Planta</th>
-                    <th className="p-2">Tarea</th>
-                    <th className="p-2">Realizado</th>
-                    <th className="p-2">Retraso (días)</th>
-                    <th className="p-2">Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {executedRows.map(row => (
-                    <tr key={row.id} className="border-t">
-                      <td className="p-2">{plantNameMap[row.plant_id] || row.plant_id}</td>
-                      <td className="p-2">Mantenimiento completo</td>
-                      <td className="p-2">
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="date"
-                            value={editDates[row.id]?.completed ?? (doneMap[row.id]?.slice(0,10) || row.completed_date?.slice(0,10) || '')}
-                            onChange={e => setEditDates(prev => ({ ...prev, [row.id]: { ...(prev[row.id]||{}), completed: e.target.value } }))}
-                            className="px-2 py-1 rounded border bg-white dark:bg-gray-800"
-                          />
-                          <button className="px-2 py-1 rounded border" onClick={() => updateCompletedDate(row.id, (editDates[row.id]?.completed || ''))}>
-                            Guardar
-                          </button>
-                        </div>
-                      </td>
-                      <td className="p-2">{row.delayDays || 0}</td>
-                      <td className="p-2">
-                        <button className="px-3 py-1 rounded border" onClick={() => toggleDone(row.id)}>
-                          Marcar no realizado
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          <div className="mt-6">
-            <div className="text-sm font-semibold mb-2">Próximo mantenimiento (completados + 365 días)</div>
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left">
-                    <th className="p-2">Planta</th>
-                    <th className="p-2">Tarea</th>
-                    <th className="p-2">Completado</th>
-                    <th className="p-2">Próximo</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tasks.filter(t => t.status === 'completed' || !!doneMap[t.id]).map(t => {
-                    const base = new Date((doneMap[t.id] || t.completed_date || t.scheduled_date))
-                    const next = new Date(base.getTime() + 365 * 86400000)
+                  {planningRows.map(row => {
+                    const isCompleted = row.status === 'completed' || !!doneMap[row.id]
+                    const todayStr = new Date().toISOString().slice(0, 10)
+                    // Usar fecha editada si existe para calcular si está vencido
+                    const scheduledDateStr = editDates[row.id]?.scheduled ?? row.scheduled_date.slice(0, 10)
+                    const isOverdue = !isCompleted && scheduledDateStr < todayStr
+                    const statusColor = isCompleted ? 'text-green-600' : isOverdue ? 'text-red-600' : 'text-blue-600'
+                    const statusText = isCompleted ? '✓ Completado' : isOverdue ? '⚠ Vencido' : '○ Pendiente'
+
                     return (
-                      <tr key={`next-${t.id}`} className="border-t">
-                        <td className="p-2">{t.plant_id}</td>
-                        <td className="p-2">Mantenimiento completo</td>
-                        <td className="p-2">{(doneMap[t.id] || t.completed_date) ? new Date((doneMap[t.id] || t.completed_date)!).toLocaleDateString() : '-'}</td>
-                        <td className="p-2">{next.toLocaleDateString()}</td>
+                      <tr key={row.id} className="border-t hover:bg-gray-50 dark:hover:bg-gray-700">
+                        <td className="p-3 font-medium">{plantNameMap[row.plant_id] || row.plant_id}</td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="date"
+                              value={scheduledDateStr}
+                              onChange={e => setEditDates(prev => ({ ...prev, [row.id]: { ...(prev[row.id]||{}), scheduled: e.target.value } }))}
+                              disabled={!isAdmin}
+                              className="px-2 py-1 rounded border bg-white dark:bg-gray-800 disabled:opacity-50"
+                            />
+                            {isAdmin && (
+                              <button
+                                className="px-3 py-1 rounded bg-blue-500 text-white hover:bg-blue-600 text-xs"
+                                onClick={() => updateScheduledDate(row, scheduledDateStr)}
+                              >
+                                Guardar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isCompleted}
+                            onChange={() => toggleDone(row)}
+                            className="w-5 h-5 cursor-pointer"
+                          />
+                        </td>
+                        <td className={`p-3 text-center font-semibold ${statusColor}`}>
+                          {statusText}
+                        </td>
                       </tr>
                     )
                   })}
@@ -580,17 +563,28 @@ export default function Maintenance() {
             </div>
           </div>
           <div className="mt-6">
-            <div className="text-sm font-semibold mb-2">Gantt de planificación vs ejecución</div>
-            <div className="text-xs text-gray-600 mb-2">Azul: programado · Verde: ejecutado (progreso) · Línea roja: hoy</div>
-            <div className="relative">
-              <Gantt tasks={ganttTasks} viewMode={view} barCornerRadius={8} listCellWidth="200px" columnWidth={COLUMN_WIDTH} />
-              {todayLineOffset !== null && (
-                <div
-                  className="absolute top-0 bottom-0"
-                  style={{ left: todayLineOffset, width: 2, background: '#ef4444', opacity: 0.85, pointerEvents: 'none' }}
-                />
-              )}
+            <div className="text-sm font-semibold mb-2">Gantt Anual de Mantenimientos</div>
+            <div className="text-xs text-gray-600 mb-2">
+              <span className="inline-block mr-4">🔵 Azul: Pendiente</span>
+              <span className="inline-block mr-4">🟢 Verde: Completado</span>
+              <span className="inline-block mr-4">🔴 Rojo: Vencido (no realizado)</span>
+              <span className="inline-block">│ Línea roja: Hoy</span>
             </div>
+            {ganttTasks.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No hay tareas de mantenimiento programadas para este año
+              </div>
+            ) : (
+              <div className="relative">
+                <Gantt tasks={ganttTasks} viewMode={view} barCornerRadius={8} listCellWidth="200px" columnWidth={COLUMN_WIDTH} />
+                {todayLineOffset !== null && (
+                  <div
+                    className="absolute top-0 bottom-0"
+                    style={{ left: todayLineOffset, width: 2, background: '#ef4444', opacity: 0.85, pointerEvents: 'none' }}
+                  />
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}

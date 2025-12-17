@@ -328,7 +328,33 @@ export function seedDatabase() {
     insertEmergency.run(emerg.id, emerg.plant_id, emerg.reason, emerg.solved, emerg.resolve_time_hours, emerg.reported_at, emerg.severity, emerg.observations)
   }
 
-  console.log(`[database] Seeded ${plants.length} plants, ${envData.length} environmental records, ${emergencies.length} emergencies`)
+  // Insert demo maintenance tasks
+  const insertMaintenanceTask = db.prepare(`
+    INSERT INTO maintenance_tasks (id, plant_id, task_type, description, scheduled_date, completed_date, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `)
+
+  const maintenanceTasks: any[] = []
+  const currentYear = new Date().getFullYear()
+
+  plants.forEach(plant => {
+    // Una tarea por planta para el año actual
+    maintenanceTasks.push({
+      id: `maint-${plant.id}-${currentYear}`,
+      plant_id: plant.id,
+      task_type: 'general',
+      description: 'Mantenimiento completo',
+      scheduled_date: new Date(currentYear, 6, 1).toISOString(), // 1 de julio
+      completed_date: null,
+      status: 'pending'
+    })
+  })
+
+  for (const task of maintenanceTasks) {
+    insertMaintenanceTask.run(task.id, task.plant_id, task.task_type, task.description, task.scheduled_date, task.completed_date, task.status)
+  }
+
+  console.log(`[database] Seeded ${plants.length} plants, ${envData.length} environmental records, ${emergencies.length} emergencies, ${maintenanceTasks.length} maintenance tasks`)
 }
 
 // Initialize database on module load
