@@ -1,0 +1,66 @@
+{
+  "expo": {
+    "name": "PTAR Checklist",
+    "slug": "ptar-checklist",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#2563EB"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.santapriscila.ptarchecklist"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#2563EB"
+      },
+      "package": "com.santapriscila.ptarchecklist",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "PTAR Checklist - Santa Priscila",
+      "shortName": "PTAR Check",
+      "description": "Sistema de checklist operativo para plantas de tratamiento de aguas residuales",
+      "lang": "es",
+      "themeColor": "#2563EB",
+      "backgroundColor": "#F3F4F6",
+      "display": "standalone",
+      "orientation": "portrait",
+      "startUrl": "/",
+      "scope": "/"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permitir acceso a la cámara para tomar fotos de equipos"
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Permitir acceso a fotos para adjuntar evidencia"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ptar-checklist-santa-priscila"
+      }
+    }
+  }
+}

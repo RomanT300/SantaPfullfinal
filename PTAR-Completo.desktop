@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=PTAR Santa Priscila (Completo)
+Comment=Inicia Web + PWA + Backend
+Exec=bash -c 'cd "/home/roman/Santa Priscila" && ./iniciar-todo.sh'
+Icon=applications-internet
+Terminal=true
+Categories=Development;Utility;
+StartupNotify=true

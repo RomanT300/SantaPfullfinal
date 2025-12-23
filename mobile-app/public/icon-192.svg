@@ -1,0 +1,6 @@
+<svg width="192" height="192" viewBox="0 0 192 192" xmlns="http://www.w3.org/2000/svg">
+  <rect width="192" height="192" rx="32" fill="#2563EB"/>
+  <text x="96" y="85" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="36" font-weight="bold">PTAR</text>
+  <text x="96" y="125" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="18" font-weight="500">CHECK</text>
+  <circle cx="96" cy="155" r="12" fill="white" opacity="0.8"/>
+</svg>

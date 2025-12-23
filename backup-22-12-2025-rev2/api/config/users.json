@@ -1,0 +1,18 @@
+{
+  "users": [
+    {
+      "id": "admin-001",
+      "email": "admin@santapriscila.com",
+      "password": "$2a$10$/cNoyKaE.WRYNbfWa6z7U.1ciyuSWKgPIj98bkqQDa9z.VVM0nfMi",
+      "name": "Administrador",
+      "role": "admin"
+    },
+    {
+      "id": "operator-001",
+      "email": "operador@santapriscila.com",
+      "password": "$2a$10$/cNoyKaE.WRYNbfWa6z7U.1ciyuSWKgPIj98bkqQDa9z.VVM0nfMi",
+      "name": "Operador",
+      "role": "standard"
+    }
+  ]
+}

@@ -4,6 +4,84 @@
 
 Este archivo contiene información crítica para que Claude pueda trabajar eficientemente en el proyecto en futuras sesiones.
 
+---
+
+## 🌐 DESPLIEGUE CON TÚNELES (Información Crítica)
+
+### Cloudflare Tunnel (Recomendado)
+
+```bash
+# 1. Iniciar servidor (sirve frontend + backend + app móvil)
+cd "/home/roman/Santa Priscila"
+pnpm run dev
+
+# 2. En otra terminal, crear túnel
+cloudflared tunnel --url http://localhost:8080
+
+# URL generada ejemplo: https://xxx-xxx-xxx.trycloudflare.com
+```
+
+**URLs disponibles:**
+- App Principal: `https://[tunnel-url]/`
+- App Móvil Checklist: `https://[tunnel-url]/mobile`
+
+### Configuración CORS (api/app.ts)
+
+El backend acepta dinámicamente estos orígenes:
+```typescript
+const allowedOrigins = [
+  /localhost/,
+  /\.loca\.lt$/,           // localtunnel
+  /\.ngrok-free\.app$/,    // ngrok
+  /\.trycloudflare\.com$/  // cloudflare (PREFERIDO)
+]
+```
+
+### App Móvil - Rutas Críticas (mobile-app/dist/index.html)
+
+**IMPORTANTE**: Cuando se sirve desde `/mobile`, TODOS los assets deben tener prefijo `/mobile/`:
+
+```html
+<!-- CORRECTO -->
+<link rel="icon" href="/mobile/icon-192.svg">
+<link rel="manifest" href="/mobile/manifest.json">
+<script src="/mobile/_expo/static/js/web/App-xxx.js" defer></script>
+navigator.serviceWorker.register('/mobile/sw.js')
+
+<!-- INCORRECTO (causará pantalla blanca) -->
+<link rel="icon" href="/icon-192.svg">
+<script src="/_expo/static/js/web/App-xxx.js" defer></script>
+```
+
+### App Móvil - Detección de API URL (mobile-app/App.tsx líneas 34-46)
+
+```typescript
+const getApiUrl = () => {
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname
+    // Si NO es localhost, usar la misma URL base
+    if (host !== 'localhost') {
+      return `${window.location.protocol}//${window.location.host}/api`
+    }
+  }
+  return 'http://localhost:8080/api'
+}
+```
+
+### Recompilar App Móvil después de Cambios
+
+```bash
+cd mobile-app
+npx expo export --platform web --clear
+cp public/*.svg public/manifest.json public/sw.js dist/
+
+# CRÍTICO: Editar dist/index.html para cambiar rutas a /mobile/
+# Buscar: href="/ y src="/
+# Cambiar a: href="/mobile/ y src="/mobile/
+```
+
+---
+
 ## 🔴 REGLAS CRÍTICAS - LEER PRIMERO
 
 ### 1. **NUNCA** Modificar sin Entender
@@ -290,7 +368,7 @@ Antes de hacer cambios en mantenimientos:
 ## 🔄 Comandos de Inicio Rápido
 
 ```bash
-# En una nueva sesión
+# Desarrollo local
 cd "/home/roman/Santa Priscila"
 pnpm run dev
 
@@ -298,8 +376,24 @@ pnpm run dev
 # [0] VITE ready in XXXms
 # [1] Server ready on port 8080
 
-# Acceder a: http://localhost:5173
+# Acceso local:
+# - Frontend: http://localhost:5173
+# - Backend: http://localhost:8080
+# - App Móvil: http://localhost:8080/mobile
+
+# Despliegue con túnel (acceso desde internet/celular):
+cloudflared tunnel --url http://localhost:8080
+# Copiar la URL generada (https://xxx.trycloudflare.com)
 ```
+
+## 🔑 Credenciales
+
+| Usuario | Email | Password |
+|---------|-------|----------|
+| Admin | admin@santapriscila.com | admin123 |
+| Operador | operador@santapriscila.com | operador123 |
+
+**Nota**: Los passwords están hasheados con bcrypt en `api/config/users.json`
 
 ## 📞 Contacto con Usuario
 
@@ -321,6 +415,25 @@ Este proyecto está **funcional y completo**. Los cambios futuros deben:
 
 ---
 
-**Última actualización**: Diciembre 2025
+**Última actualización**: 22 Diciembre 2025
 **Por**: Claude (Anthropic)
 **Para**: Futuras sesiones de Claude trabajando en este proyecto
+
+---
+
+## 🐛 Problemas Resueltos (Histórico)
+
+### Problema: App móvil muestra pantalla blanca después de login
+**Causa**: Los assets se cargan desde `/` pero la app está en `/mobile`
+**Solución**: Editar `mobile-app/dist/index.html` y cambiar todas las rutas a `/mobile/`
+
+### Problema: ngrok requiere autenticación
+**Solución**: Usar Cloudflare Tunnel (cloudflared) - no requiere cuenta
+
+### Problema: localtunnel muy lento
+**Causa**: Servidores sobrecargados
+**Solución**: Usar Cloudflare Tunnel (más rápido y estable)
+
+### Problema: Credencial de operador no funciona
+**Causa**: Hash incorrecto en users.json (ambos usuarios tenían el mismo hash)
+**Solución**: Regenerar hash con bcrypt para operador123

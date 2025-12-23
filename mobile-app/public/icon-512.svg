@@ -1,0 +1,7 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <rect width="512" height="512" rx="80" fill="#2563EB"/>
+  <text x="256" y="210" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="96" font-weight="bold">PTAR</text>
+  <text x="256" y="310" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="48" font-weight="500">CHECK</text>
+  <circle cx="256" cy="400" r="32" fill="white" opacity="0.8"/>
+  <path d="M240 400 L252 412 L272 392" stroke="#2563EB" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

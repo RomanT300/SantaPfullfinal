@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta http-equiv="X-UA-Compatible" content="ie=edge">
+
+  <!-- PWA Meta Tags -->
+  <meta name="theme-color" content="#2563EB">
+  <meta name="background-color" content="#F3F4F6">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PTAR Check">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="application-name" content="PTAR Checklist">
+
+  <!-- App Info -->
+  <meta name="description" content="Sistema de checklist operativo para plantas de tratamiento de aguas residuales - Santa Priscila">
+  <meta name="author" content="Santa Priscila">
+
+  <!-- Icons -->
+  <link rel="icon" type="image/svg+xml" href="/icon-192.svg">
+  <link rel="apple-touch-icon" href="/icon-192.svg">
+  <link rel="manifest" href="/manifest.json">
+
+  <title>PTAR Checklist - Santa Priscila</title>
+
+  <style>
+    /* Loading styles */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body, #root { height: 100%; width: 100%; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background-color: #F3F4F6;
+      -webkit-font-smoothing: antialiased;
+    }
+    #loading {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: #2563EB;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+    }
+    #loading .logo {
+      width: 120px;
+      height: 120px;
+      background: white;
+      border-radius: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 24px;
+    }
+    #loading .logo-text {
+      color: #2563EB;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    #loading .logo-sub {
+      color: #2563EB;
+      font-size: 12px;
+      font-weight: 500;
+    }
+    #loading .title {
+      color: white;
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    #loading .subtitle {
+      color: rgba(255,255,255,0.8);
+      font-size: 14px;
+    }
+    #loading .spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin-top: 32px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    /* Offline notice */
+    #offline-notice {
+      display: none;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #DC2626;
+      color: white;
+      text-align: center;
+      padding: 12px;
+      font-size: 14px;
+      z-index: 10000;
+    }
+    #offline-notice.show { display: block; }
+  </style>
+</head>
+<body>
+  <!-- Loading Screen -->
+  <div id="loading">
+    <div class="logo">
+      <span class="logo-text">PTAR</span>
+      <span class="logo-sub">CHECK</span>
+    </div>
+    <div class="title">Santa Priscila</div>
+    <div class="subtitle">Cargando aplicación...</div>
+    <div class="spinner"></div>
+  </div>
+
+  <!-- Offline Notice -->
+  <div id="offline-notice">
+    Sin conexión a internet
+  </div>
+
+  <!-- React App Root -->
+  <div id="root"></div>
+
+  <script>
+    // Hide loading screen when app is ready
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const loading = document.getElementById('loading');
+        if (loading) {
+          loading.style.opacity = '0';
+          loading.style.transition = 'opacity 0.3s';
+          setTimeout(() => loading.remove(), 300);
+        }
+      }, 500);
+    });
+
+    // Offline detection
+    const offlineNotice = document.getElementById('offline-notice');
+    window.addEventListener('online', () => offlineNotice.classList.remove('show'));
+    window.addEventListener('offline', () => offlineNotice.classList.add('show'));
+    if (!navigator.onLine) offlineNotice.classList.add('show');
+
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => {
+            console.log('Service Worker registered:', reg.scope);
+
+            // Check for updates
+            reg.addEventListener('updatefound', () => {
+              const newWorker = reg.installing;
+              newWorker.addEventListener('statechange', () => {
+                if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                  // New content available, show update prompt
+                  if (confirm('Nueva versión disponible. ¿Actualizar ahora?')) {
+                    newWorker.postMessage('skipWaiting');
+                    window.location.reload();
+                  }
+                }
+              });
+            });
+          })
+          .catch((err) => console.error('SW registration failed:', err));
+      });
+    }
+
+    // PWA Install prompt
+    let deferredPrompt;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      console.log('Install prompt available');
+    });
+  </script>
+</body>
+</html>

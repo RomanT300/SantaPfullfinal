@@ -2,403 +2,262 @@
 
 Sistema completo para gestión de Plantas de Tratamiento de Aguas Residuales (PTAR).
 
-## 🚀 Inicio Rápido
+## Inicio Rápido
 
-### Desarrollo Local (Recomendado)
-
+### Opción 1: Doble clic (Linux)
 ```bash
-# Instalar dependencias
-pnpm install
+./iniciar-app.sh
+```
+Abre automáticamente http://localhost:5173
 
-# Iniciar desarrollo (frontend + backend)
-pnpm run dev
+### Opción 2: Comandos
+```bash
+pnpm install    # Primera vez
+pnpm run dev    # Iniciar desarrollo
 ```
 
 Acceso:
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:8080
+- **App Móvil (local)**: http://localhost:8080/mobile
 
-### Docker (Producción)
-
-```bash
-# Construir y levantar contenedores
-sudo docker compose up --build -d
-
-# Ver estado
-sudo docker ps
-
-# Ver logs
-sudo docker logs ptar-backend
-sudo docker logs ptar-frontend
-```
-
-## 👤 Credenciales de Acceso
+## Credenciales de Acceso
 
 | Usuario | Email | Password | Permisos |
 |---------|-------|----------|----------|
-| Admin | admin@santapriscila.com | Admin2025! | Completo |
-| Operador | operador@santapriscila.com | Admin2025! | Solo lectura |
+| Admin | admin@santapriscila.com | admin123 | Completo |
+| Operador | operador@santapriscila.com | operador123 | Lectura + Checklist |
 
-## 📁 Estructura del Proyecto
+## Despliegue con Túnel (Acceso desde Internet/Celular)
+
+### Usando Cloudflare Tunnel (Recomendado - Rápido y estable)
+
+```bash
+# 1. Iniciar el servidor backend (sirve todo)
+cd "/home/roman/Santa Priscila"
+pnpm run dev
+
+# 2. En otra terminal, iniciar túnel Cloudflare
+cloudflared tunnel --url http://localhost:8080
+
+# 3. Copiar la URL generada (ej: https://xxx-xxx.trycloudflare.com)
+```
+
+**URLs disponibles via túnel:**
+- App Principal: `https://[tunnel-url]/`
+- App Móvil Checklist: `https://[tunnel-url]/mobile`
+
+**Ventajas de Cloudflare:**
+- No requiere cuenta ni password
+- Muy rápido y estable
+- HTTPS automático
+
+### Alternativa: Localtunnel (Más lento)
+
+```bash
+npx localtunnel --port 8080
+# Password requerido: tu IP pública (curl ifconfig.me)
+```
+
+## App Móvil PWA (Checklist para Operadores)
+
+### Acceso
+- **Local**: http://localhost:8080/mobile
+- **Via túnel**: https://[tunnel-url]/mobile
+
+### Instalación como PWA en iPhone/Android
+1. Abrir la URL en Safari (iOS) o Chrome (Android)
+2. Menú compartir > "Añadir a pantalla de inicio"
+3. Se instala como app nativa
+
+### Características
+- Login con credenciales de operador
+- Selección de planta
+- Checklist diario con items por sección
+- Marcar items como OK o Problema (con comentario obligatorio)
+- Reporte de emergencias
+- Funciona offline (Service Worker)
+
+### Archivos clave de la app móvil
+```
+mobile-app/
+├── App.tsx              # Aplicación completa (lógica + UI)
+├── app.json             # Configuración Expo
+├── public/
+│   ├── manifest.json    # PWA manifest
+│   ├── sw.js            # Service Worker
+│   ├── icon-192.svg     # Icono PWA
+│   └── icon-512.svg     # Icono PWA grande
+└── dist/                # Build compilado (se sirve desde /mobile)
+```
+
+### Compilar app móvil después de cambios
+```bash
+cd mobile-app
+npx expo export --platform web --clear
+cp public/*.svg public/manifest.json public/sw.js dist/
+# Ajustar rutas en dist/index.html (cambiar / por /mobile/)
+```
+
+## Estructura del Proyecto
 
 ```
-.
+Santa Priscila/
 ├── api/                    # Backend Node.js/Express
-│   ├── routes/            # Endpoints API REST
-│   │   ├── auth.ts        # Autenticación y usuarios
-│   │   ├── plants.ts      # Gestión de plantas
-│   │   ├── environmental.ts # Datos ambientales
-│   │   ├── maintenance.ts  # Mantenimientos (CRÍTICO)
-│   │   └── emergencies.ts # Emergencias
-│   ├── lib/               # Lógica de negocio
-│   │   ├── database.ts    # Inicialización SQLite
-│   │   └── dal.ts         # Data Access Layer
-│   ├── middleware/        # Middlewares Express
-│   │   ├── auth.ts        # Autenticación JWT
-│   │   └── rateLimit.ts   # Rate limiting
-│   ├── config/            # Configuración
-│   │   └── users.json     # Usuarios del sistema
-│   ├── server.ts          # Entry point del servidor
-│   └── app.ts             # Configuración Express
+│   ├── routes/
+│   │   ├── auth.ts         # Autenticación JWT
+│   │   ├── plants.ts       # CRUD plantas
+│   │   ├── analytics.ts    # Datos analíticos
+│   │   ├── maintenance.ts  # Mantenimientos + Emergencias
+│   │   ├── checklist.ts    # API del checklist móvil
+│   │   ├── documents.ts    # Gestión de documentos
+│   │   └── dashboard.ts    # Datos del dashboard
+│   ├── lib/
+│   │   ├── database.ts     # Inicialización SQLite
+│   │   └── dal.ts          # Data Access Layer
+│   ├── config/users.json   # Usuarios (passwords hasheados bcrypt)
+│   ├── app.ts              # Express app + CORS + Static serving
+│   └── server.ts           # Entry point
 │
-├── src/                   # Frontend React + TypeScript
-│   ├── pages/             # Páginas principales
-│   │   ├── Dashboard.tsx  # Dashboard principal
-│   │   ├── Plants.tsx     # Gestión de plantas
-│   │   ├── Environmental.tsx # Datos ambientales
-│   │   ├── Maintenance.tsx # **PÁGINA CRÍTICA** - Ver sección abajo
-│   │   ├── Emergencies.tsx # Gestión de emergencias
-│   │   └── Login.tsx      # Página de login
-│   ├── components/        # Componentes reutilizables
-│   │   ├── Layout.tsx     # Layout principal
-│   │   ├── Sidebar.tsx    # Barra lateral de navegación
-│   │   └── ProtectedRoute.tsx # Rutas protegidas
-│   ├── App.tsx            # Componente raíz
-│   └── main.tsx           # Entry point
+├── src/                    # Frontend React + TypeScript
+│   ├── pages/
+│   │   ├── Dashboard.tsx
+│   │   ├── Maintenance.tsx # Sistema de placeholders automáticos
+│   │   ├── Documents.tsx
+│   │   └── ...
+│   └── App.tsx
 │
-├── data/                  # Base de datos SQLite
-│   └── database.sqlite    # BD persistente (no versionar)
+├── mobile-app/             # App móvil Expo/React Native
+│   ├── App.tsx             # App completa
+│   └── dist/               # Build web (servido desde /mobile)
 │
-├── uploads/               # Archivos subidos
-│
-├── nginx/                 # Configuración Nginx (Docker)
-├── docker-compose.yml     # Orquestación Docker
-├── Dockerfile.backend     # Imagen del backend
-├── Dockerfile.frontend    # Imagen del frontend
-├── .env                   # Variables de entorno
-├── package.json           # Dependencias del proyecto
-├── tsconfig.json          # Configuración TypeScript
-└── vite.config.ts         # Configuración Vite
+├── data/                   # Base de datos SQLite
+├── uploads/                # Archivos subidos
+├── iniciar-app.sh          # Script de inicio Linux
+└── CLAUDE_GUIDE.md         # Guía para Claude (sesiones futuras)
 ```
 
-## 🔧 Tecnologías
+## Configuración del Backend para Servir App Móvil
 
-### Frontend
-- **React 18** con TypeScript
-- **Vite** como build tool
-- **TailwindCSS** para estilos
-- **React Router** para navegación
-- **Recharts** para gráficos
-- **gantt-task-react** para Gantt charts
-
-### Backend
-- **Node.js** + **Express**
-- **TypeScript**
-- **SQLite** (better-sqlite3) como base de datos
-- **JWT** para autenticación (cookies HttpOnly)
-- **express-validator** para validación
-- **express-rate-limit** para rate limiting
-
-### DevOps
-- **Docker** + **Docker Compose**
-- **Nginx** como proxy reverso
-- **pnpm** como package manager
-
-## 🎯 Funcionalidades Principales
-
-### 1. Dashboard
-- Vista general de todas las plantas
-- Gráficos de datos ambientales
-- Estado de mantenimientos pendientes
-- Alertas de emergencias activas
-
-### 2. Gestión de Plantas
-- CRUD completo de plantas
-- Información detallada por planta
-- Historial de mantenimientos
-- Datos ambientales asociados
-
-### 3. Datos Ambientales
-- Registro de parámetros ambientales
-- Gráficos históricos
-- Alertas por valores fuera de rango
-- Exportación de datos
-
-### 4. **Mantenimientos** (FUNCIONALIDAD CRÍTICA)
-
-#### Arquitectura de Mantenimientos
-
-**Archivo**: `src/pages/Maintenance.tsx`
-
-**Concepto Clave**: Sistema de **placeholders automáticos**
-- Cada año muestra automáticamente TODAS las plantas
-- Las plantas sin tareas guardadas muestran un "placeholder" (fecha por defecto: 1 de julio)
-- Los placeholders se convierten en tareas reales al guardar o marcar como realizado
-
-**Estados de una Tarea**:
+En `api/app.ts`:
 ```typescript
-type Maint = {
-  id: string                    // ID real o "placeholder-{plantId}-{year}"
-  plant_id: string              // UUID de la planta
-  task_type: 'general'          // Tipo de mantenimiento
-  description: string           // Descripción
-  scheduled_date: string        // Fecha programada (ISO)
-  completed_date?: string       // Fecha de realización (opcional)
-  status: 'pending' | 'completed' | 'overdue'
-  isPlaceholder?: boolean       // Flag que indica si es placeholder
-}
+// Servir frontend principal
+const distPath = path.join(__dirname, '..', 'dist')
+app.use(express.static(distPath))
+
+// Servir app móvil desde /mobile
+const mobileDistPath = path.join(__dirname, '..', 'mobile-app', 'dist')
+app.use('/mobile', express.static(mobileDistPath))
+
+// SPA fallback
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    return res.status(404).json({ error: 'API not found' })
+  }
+  if (req.path.startsWith('/mobile')) {
+    return res.sendFile(path.join(mobileDistPath, 'index.html'))
+  }
+  res.sendFile(path.join(distPath, 'index.html'))
+})
 ```
 
-**Flujo de Datos**:
+## CORS para Túneles
 
-1. **`yearTasks` (líneas 151-178)**:
-   ```typescript
-   // Genera una tarea por cada planta para el año seleccionado
-   // - Si existe en BD: usa la tarea real
-   // - Si NO existe: crea un placeholder
-   ```
+En `api/app.ts`, el CORS acepta dinámicamente:
+- localhost (varios puertos)
+- *.loca.lt (localtunnel)
+- *.ngrok-free.app (ngrok)
+- *.trycloudflare.com (cloudflare)
 
-2. **`ganttTasks` (líneas 180-224)**:
-   ```typescript
-   // Convierte yearTasks en tareas de Gantt
-   // - Lee editDates para mostrar cambios en tiempo real
-   // - Calcula colores según estado:
-   //   * Azul (#60a5fa): pendiente
-   //   * Verde (#16a34a): completado
-   //   * Rojo (#ef4444): vencido (fecha pasada y no completado)
-   ```
+## API del Checklist Móvil
 
-3. **`editDates` State**:
-   ```typescript
-   // Almacena fechas temporales mientras el usuario edita
-   // Permite preview en tiempo real en el Gantt
-   // Se limpia al guardar
-   ```
-
-**Funciones Críticas**:
-
-- **`toggleDone()`** (líneas 235-297):
-  ```typescript
-  // Marca una tarea como completada/pendiente
-  // Si es placeholder: lo crea primero, luego marca como completado
-  // Si es real: toggle del estado
-  ```
-
-- **`updateScheduledDate()`** (líneas 299-332):
-  ```typescript
-  // Actualiza la fecha programada
-  // Si es placeholder: crea la tarea con la nueva fecha
-  // Si es real: actualiza la fecha
-  ```
-
-**Características del Gantt**:
-- Actualización en tiempo real al cambiar fechas
-- Colores automáticos según estado
-- Línea roja vertical marca "hoy"
-- Vista semanal del año completo
-- Filtrado por planta
-
-**UI - Tabla de Mantenimientos** (líneas 605-665):
-- Columnas: Planta | Fecha Programada | Realizado (checkbox) | Estado
-- Solo Admin puede editar fechas
-- Checkbox funciona para todos los usuarios autenticados
-- Estados visuales con colores
-
-### 5. Emergencias
-- Registro de emergencias por planta
-- Niveles de severidad (low, medium, high)
-- Tiempo de resolución
-- Estado (resuelto/sin resolver)
-- Observaciones
-
-## 📊 API Endpoints
-
-### Autenticación
 ```
-POST   /api/auth/login     # Login
-POST   /api/auth/logout    # Logout
-GET    /api/auth/me        # Usuario actual
+POST   /api/auth/login              # Login
+GET    /api/auth/me                 # Usuario actual
+GET    /api/plants                  # Listar plantas
+GET    /api/checklist/today/:plantId # Checklist del día
+PATCH  /api/checklist/item/:itemId  # Actualizar item
+POST   /api/checklist/:id/complete  # Completar checklist
+POST   /api/maintenance/emergencies/report # Reportar emergencia
 ```
 
-### Plantas
-```
-GET    /api/plants         # Listar plantas
-POST   /api/plants         # Crear planta (admin)
-PATCH  /api/plants/:id     # Actualizar planta (admin)
-DELETE /api/plants/:id     # Eliminar planta (admin)
-```
+## Sistema de Mantenimientos (Página Crítica)
 
-### Datos Ambientales
-```
-GET    /api/environmental  # Listar datos
-POST   /api/environmental  # Registrar datos (admin)
-```
+### Concepto de Placeholders
+- Cada año muestra TODAS las plantas automáticamente
+- Si no hay tarea guardada, se muestra un "placeholder"
+- Al guardar/completar, el placeholder se convierte en tarea real
 
-### Mantenimientos
-```
-GET    /api/maintenance/tasks                 # Listar tareas
-POST   /api/maintenance/tasks                 # Crear tarea (admin)
-POST   /api/maintenance/tasks/generate-monthly # Generar tareas para año (admin)
-PATCH  /api/maintenance/tasks/:id             # Actualizar tarea
-DELETE /api/maintenance/tasks/:id             # Eliminar tarea (admin)
-GET    /api/maintenance/stats                 # Estadísticas (auth)
-```
+### Estados y Colores
+- **Azul (#60a5fa)**: Pendiente
+- **Verde (#16a34a)**: Completado
+- **Rojo (#ef4444)**: Vencido (fecha pasada sin completar)
 
-### Emergencias
-```
-GET    /api/maintenance/emergencies     # Listar emergencias
-POST   /api/maintenance/emergencies     # Crear emergencia (admin)
-PATCH  /api/maintenance/emergencies/:id # Actualizar emergencia (admin)
-DELETE /api/maintenance/emergencies/:id # Eliminar emergencia (admin)
-```
+### Flujo de Datos
+1. `yearTasks`: Genera tarea por planta (real o placeholder)
+2. `ganttTasks`: Convierte a formato Gantt con colores
+3. `editDates`: Estado temporal para edición en tiempo real
 
-## 🔐 Seguridad
+## Troubleshooting
 
-- **Autenticación**: JWT en cookies HttpOnly
-- **Rate Limiting**: 100 req/15min por IP
-- **Validación**: express-validator en todos los endpoints
-- **CORS**: Configurado para desarrollo y producción
-- **Roles**: Admin y Operador con permisos diferenciados
-
-## 🗄️ Base de Datos
-
-**Tipo**: SQLite (archivo: `data/database.sqlite`)
-
-**Tablas**:
-- `plants`: Plantas PTAR
-- `environmental_data`: Datos ambientales por planta
-- `maintenance_tasks`: Tareas de mantenimiento (**CRÍTICA**)
-- `emergencies`: Registro de emergencias
-
-**Inicialización**: Automática en primer arranque
-- Schema en `api/lib/database.ts`
-- Datos de ejemplo incluidos
-- 4 plantas demo (LA LUZ, TAURA, SANTA MONICA, SAN DIEGO)
-
-## 🐛 Debugging
-
-### Logs del Backend
+### Puerto en uso
 ```bash
-# Ver logs en tiempo real
-pnpm run dev  # Ya muestra logs
-
-# O si usas Docker
-sudo docker logs -f ptar-backend
+lsof -i :8080
+kill -9 [PID]
 ```
 
-### Problemas Comunes
+### Base de datos corrupta
+```bash
+rm data/santa-priscila.db
+pnpm run dev  # Se regenera
+```
 
-1. **Puerto en uso**:
-   ```bash
-   # Liberar puerto 8080
-   fuser -k 8080/tcp
-   ```
+### App móvil muestra pantalla blanca
+1. Verificar que `dist/index.html` tenga rutas con `/mobile/`
+2. Limpiar caché del navegador (Ctrl+Shift+R)
+3. Abrir en ventana incógnito
 
-2. **Base de datos corrupta**:
-   ```bash
-   # Eliminar y regenerar
-   rm data/database.sqlite
-   pnpm run dev  # Se regenera automáticamente
-   ```
+### Túnel lento o no conecta
+- Cloudflare: Reiniciar `cloudflared tunnel --url http://localhost:8080`
+- Localtunnel: Usar cloudflared en su lugar (más estable)
 
-3. **Dependencias desactualizadas**:
-   ```bash
-   rm -rf node_modules pnpm-lock.yaml
-   pnpm install
-   ```
-
-4. **Proxy Vite no funciona**:
-   - Verificar que backend esté en puerto 8080
-   - Ver `vite.config.ts` línea 20
-
-## 📝 Variables de Entorno
-
-**Archivo**: `.env`
+## Variables de Entorno (.env)
 
 ```bash
-PORT=8080                    # Puerto del backend
-NODE_ENV=development         # development | production
-DATABASE_PATH=./data/database.sqlite
-JWT_SECRET=auto-generated    # Se genera automáticamente
+PORT=8080
+NODE_ENV=development
+DATABASE_PATH=./data/santa-priscila.db
+JWT_SECRET=tu-secreto-jwt
 ```
 
-## 🔄 Flujo de Trabajo para Claude (Futuras Sesiones)
-
-### Al Iniciar Sesión:
-1. Leer este README completo
-2. Revisar `src/pages/Maintenance.tsx` - Es el archivo más crítico
-3. Entender el sistema de placeholders
-4. Verificar que el servidor esté corriendo (`pnpm run dev`)
-
-### Para Modificar Mantenimientos:
-1. **NUNCA** eliminar el concepto de placeholders
-2. Mantener la actualización en tiempo real del Gantt
-3. Preservar la lógica de `yearTasks`, `ganttTasks`, `editDates`
-4. Respetar los colores: azul=pendiente, verde=completado, rojo=vencido
-
-### Para Agregar Funcionalidades:
-1. Backend: Crear ruta en `api/routes/`
-2. Agregar lógica de datos en `api/lib/dal.ts`
-3. Frontend: Crear/modificar página en `src/pages/`
-4. Actualizar rutas en `src/App.tsx`
-
-## 📦 Comandos Útiles
+## Comandos Útiles
 
 ```bash
 # Desarrollo
-pnpm run dev              # Iniciar dev (frontend + backend)
-pnpm run client:dev       # Solo frontend
+pnpm run dev              # Frontend + Backend
 pnpm run server:dev       # Solo backend
+pnpm run client:dev       # Solo frontend
 
-# Producción
-pnpm run build            # Build del frontend
+# Build
+pnpm run build            # Build frontend
 
-# Docker
-sudo docker compose up --build -d    # Construir y levantar
-sudo docker compose down             # Detener
-sudo docker compose restart          # Reiniciar
+# App móvil
+cd mobile-app && npx expo export --platform web
+
+# Túnel
+cloudflared tunnel --url http://localhost:8080
+
+# Ver IP pública (para localtunnel password)
+curl ifconfig.me
 ```
 
-## 🎨 Personalización
+## Backup
 
-### Colores del Sistema
-- Primario: Blue (#3b82f6)
-- Éxito: Green (#16a34a)
-- Peligro: Red (#ef4444)
-- Advertencia: Yellow (#eab308)
-
-### Temas
-- Light mode (por defecto)
-- Dark mode (soporte completo con `dark:` classes)
-
-## 📞 Soporte
-
-Para problemas técnicos:
-1. Revisar logs del servidor
-2. Verificar consola del navegador
-3. Comprobar estado de la BD SQLite
-4. Revisar este README
-
-## 🎯 Roadmap
-
-- [ ] Exportación de datos a Excel/PDF
-- [ ] Notificaciones por email
-- [ ] Dashboard con métricas avanzadas
-- [ ] Integración con sistemas externos
-- [ ] App móvil (React Native)
+Los backups se guardan en el directorio padre con formato:
+`backup-DD-MM-YYYY-revX/`
 
 ---
 
-**Última actualización**: Diciembre 2025
-**Versión**: 1.0.0
+**Última actualización**: 22 de Diciembre 2025
+**Versión**: 3.0.0
 **Desarrollado para**: Santa Priscila PTAR

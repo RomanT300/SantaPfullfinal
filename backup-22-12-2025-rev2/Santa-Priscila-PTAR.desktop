@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Santa Priscila PTAR
+Comment=Sistema de Tratamiento y Rehabilitación de Plantas
+Exec=gnome-terminal -- bash -c "/home/roman/Santa Priscila/start-app.sh"
+Icon=utilities-terminal
+Terminal=false
+Categories=Development;
+StartupNotify=true

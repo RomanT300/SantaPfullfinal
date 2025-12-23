@@ -1,0 +1,39 @@
+{
+  "name": "PTAR Checklist - Santa Priscila",
+  "short_name": "PTAR Check",
+  "description": "Sistema de checklist operativo para plantas de tratamiento de aguas residuales - Santa Priscila",
+  "start_url": "/mobile/",
+  "scope": "/mobile/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F3F4F6",
+  "theme_color": "#2563EB",
+  "lang": "es",
+  "icons": [
+    {
+      "src": "/mobile/icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/mobile/icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["utilities", "productivity", "business"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Iniciar Checklist",
+      "short_name": "Checklist",
+      "description": "Abrir checklist del dia",
+      "url": "/mobile/",
+      "icons": [{ "src": "/mobile/icon-192.svg", "sizes": "192x192" }]
+    }
+  ],
+  "related_applications": [],
+  "prefer_related_applications": false
+}
