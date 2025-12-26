@@ -21,6 +21,7 @@ import equipmentRoutes from './routes/equipment.js'
 import notificationRoutes from './routes/notifications.js'
 import checklistRoutes from './routes/checklist.js'
 import dashboardRoutes from './routes/dashboard.js'
+import ticketsRoutes from './routes/tickets.js'
 import helmet from 'helmet'
 import morgan from 'morgan'
 import cookieParser from 'cookie-parser'
@@ -119,6 +120,7 @@ app.use('/api/equipment', equipmentRoutes)
 app.use('/api/notifications', notificationRoutes)
 app.use('/api/checklist', checklistRoutes)
 app.use('/api/dashboard', dashboardRoutes)
+app.use('/api/tickets', ticketsRoutes)
 
 /**
  * health

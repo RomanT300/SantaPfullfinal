@@ -17,6 +17,7 @@ export default defineConfig({
     }),
   ],
   server: {
+    allowedHosts: ['.trycloudflare.com'],
     watch: {
       ignored: ['**/backup-*/**', '**/Santa Priscila Backup*/**'],
     },

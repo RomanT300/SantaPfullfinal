@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Development files
+*.log
+.env
+.env.local
+.env.development
+.env.test
+
+# Git
+.git/
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Data (mount as volume)
+data/
+uploads/
+logs/
+backups/
+
+# SSL certificates (mount as volume)
+ssl/
+
+# Documentation
+README.md
+CHANGELOG.md
+docs/
+
+# Tests
+tests/
+*.test.ts
+*.spec.ts
+coverage/
+
+# Docker files (not needed inside container)
+docker-compose*.yml
+Dockerfile*
+.dockerignore

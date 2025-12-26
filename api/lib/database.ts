@@ -2603,6 +2603,83 @@ export function createAdditionalTables() {
     CREATE INDEX IF NOT EXISTS idx_task_comments_task ON emergency_task_comments(task_id);
   `)
 
+  // Tickets/Support Requests table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS tickets (
+      id TEXT PRIMARY KEY,
+      plant_id TEXT NOT NULL,
+      ticket_number TEXT UNIQUE NOT NULL,
+      subject TEXT NOT NULL,
+      description TEXT NOT NULL,
+      category TEXT NOT NULL CHECK(category IN ('mantenimiento', 'repuestos', 'insumos', 'consulta', 'emergencia', 'otro')),
+      priority TEXT NOT NULL CHECK(priority IN ('low', 'medium', 'high', 'urgent')) DEFAULT 'medium',
+      status TEXT NOT NULL CHECK(status IN ('open', 'in_progress', 'waiting', 'resolved', 'closed')) DEFAULT 'open',
+      requester_name TEXT NOT NULL,
+      requester_email TEXT,
+      requester_phone TEXT,
+      assigned_to TEXT,
+      sent_via_email INTEGER DEFAULT 0,
+      sent_via_whatsapp INTEGER DEFAULT 0,
+      email_sent_at TEXT,
+      whatsapp_sent_at TEXT,
+      resolved_at TEXT,
+      resolution_notes TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (plant_id) REFERENCES plants(id) ON DELETE CASCADE
+    );
+  `)
+
+  // Create indexes for tickets
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ticket_plant ON tickets(plant_id);
+    CREATE INDEX IF NOT EXISTS idx_ticket_status ON tickets(status);
+    CREATE INDEX IF NOT EXISTS idx_ticket_category ON tickets(category);
+    CREATE INDEX IF NOT EXISTS idx_ticket_priority ON tickets(priority);
+    CREATE INDEX IF NOT EXISTS idx_ticket_number ON tickets(ticket_number);
+    CREATE INDEX IF NOT EXISTS idx_ticket_created ON tickets(created_at);
+  `)
+
+  // Ticket comments/follow-ups table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ticket_comments (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      author_name TEXT NOT NULL,
+      author_email TEXT,
+      comment TEXT NOT NULL,
+      is_internal INTEGER DEFAULT 0,
+      sent_notification INTEGER DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    );
+  `)
+
+  // Create index for ticket comments
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ticket_comments_ticket ON ticket_comments(ticket_id);
+  `)
+
+  // Ticket attachments table
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS ticket_attachments (
+      id TEXT PRIMARY KEY,
+      ticket_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      file_path TEXT NOT NULL,
+      file_size INTEGER,
+      mime_type TEXT,
+      uploaded_by TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+    );
+  `)
+
+  // Create index for ticket attachments
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_ticket_attachments_ticket ON ticket_attachments(ticket_id);
+  `)
+
   console.log('[database] Additional tables created successfully')
 }
 

@@ -498,10 +498,10 @@ router.post('/:checklistId/complete', (req: Request, res: Response) => {
 })
 
 /**
- * GET /api/checklist/history/:plantId
+ * GET /api/checklist/history/plant/:plantId
  * Get checklist history for a plant
  */
-router.get('/history/:plantId', (req: Request, res: Response) => {
+router.get('/history/plant/:plantId', (req: Request, res: Response) => {
   try {
     const { plantId } = req.params
     const days = parseInt(req.query.days as string) || 30
@@ -1999,6 +1999,207 @@ router.get('/:checklistId', (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error getting checklist:', error)
     res.status(500).json({ success: false, error: 'Error al obtener checklist' })
+  }
+})
+
+// ===== HISTORICAL CHECKLIST SEARCH ROUTES =====
+
+// GET /api/checklist/history/dates - Get available dates with checklists
+router.get('/history/dates', (req: Request, res: Response) => {
+  const { plantId } = req.query as { plantId?: string }
+
+  try {
+    let query = `
+      SELECT DISTINCT DATE(check_date) as date, COUNT(*) as count
+      FROM daily_checklists
+      WHERE 1=1
+    `
+    const params: any[] = []
+
+    if (plantId) {
+      query += ' AND plant_id = ?'
+      params.push(plantId)
+    }
+
+    query += ' GROUP BY DATE(check_date) ORDER BY date DESC LIMIT 365'
+
+    const dates = db.prepare(query).all(...params)
+    res.json({ success: true, data: dates })
+  } catch (error) {
+    console.error('Error getting checklist dates:', error)
+    res.status(500).json({ success: false, error: 'Error al obtener fechas de checklists' })
+  }
+})
+
+// GET /api/checklist/history/search - Search checklists by date, plant, operator
+router.get('/history/search', (req: Request, res: Response) => {
+  const { date, plantId, operatorName, from, to } = req.query as {
+    date?: string
+    plantId?: string
+    operatorName?: string
+    from?: string
+    to?: string
+  }
+
+  try {
+    let query = `
+      SELECT
+        dc.*,
+        p.name as plant_name,
+        'Checklist Diario' as template_name,
+        'CHK' as template_code,
+        (SELECT COUNT(*) FROM daily_checklist_items WHERE checklist_id = dc.id) as total_items,
+        (SELECT COUNT(*) FROM daily_checklist_items WHERE checklist_id = dc.id AND is_checked = 1) as completed_items,
+        (SELECT COUNT(*) FROM daily_checklist_items WHERE checklist_id = dc.id AND is_red_flag = 1) as has_red_flags,
+        'Mañana' as shift
+      FROM daily_checklists dc
+      LEFT JOIN plants p ON dc.plant_id = p.id
+      WHERE 1=1
+    `
+    const params: any[] = []
+
+    if (date) {
+      query += ' AND DATE(dc.check_date) = DATE(?)'
+      params.push(date)
+    }
+
+    if (from && to) {
+      query += ' AND DATE(dc.check_date) >= DATE(?) AND DATE(dc.check_date) <= DATE(?)'
+      params.push(from, to)
+    } else if (from) {
+      query += ' AND DATE(dc.check_date) >= DATE(?)'
+      params.push(from)
+    } else if (to) {
+      query += ' AND DATE(dc.check_date) <= DATE(?)'
+      params.push(to)
+    }
+
+    if (plantId) {
+      query += ' AND dc.plant_id = ?'
+      params.push(plantId)
+    }
+
+    if (operatorName) {
+      query += ' AND dc.operator_name LIKE ?'
+      params.push(`%${operatorName}%`)
+    }
+
+    query += ' ORDER BY dc.check_date DESC, dc.created_at DESC LIMIT 100'
+
+    const checklists = db.prepare(query).all(...params)
+    res.json({ success: true, data: checklists })
+  } catch (error) {
+    console.error('Error searching checklists:', error)
+    res.status(500).json({ success: false, error: 'Error al buscar checklists' })
+  }
+})
+
+// GET /api/checklist/history/:id - Get a specific historical checklist with all items
+router.get('/history/:id', (req: Request, res: Response) => {
+  const { id } = req.params
+
+  try {
+    // Get checklist header
+    const checklist = db.prepare(`
+      SELECT
+        dc.*,
+        p.name as plant_name,
+        'Checklist Diario' as template_name,
+        'CHK' as template_code
+      FROM daily_checklists dc
+      LEFT JOIN plants p ON dc.plant_id = p.id
+      WHERE dc.id = ?
+    `).get(id)
+
+    if (!checklist) {
+      return res.status(404).json({ success: false, error: 'Checklist no encontrado' })
+    }
+
+    // Get all items with their template info
+    const items = db.prepare(`
+      SELECT dci.*, cti.section, cti.element, cti.activity, cti.requires_value, cti.value_unit
+      FROM daily_checklist_items dci
+      LEFT JOIN checklist_template_items cti ON dci.template_item_id = cti.id
+      WHERE dci.checklist_id = ?
+      ORDER BY cti.display_order ASC
+    `).all(id)
+
+    // Group items by section
+    const itemsBySection: Record<string, any[]> = {}
+    items.forEach((item: any) => {
+      const section = item.section || 'General'
+      if (!itemsBySection[section]) {
+        itemsBySection[section] = []
+      }
+      itemsBySection[section].push(item)
+    })
+
+    // Get red flags for this checklist
+    const redFlags = db.prepare(`
+      SELECT *
+      FROM red_flag_history
+      WHERE checklist_id = ?
+      ORDER BY flagged_at DESC
+    `).all(id)
+
+    res.json({
+      success: true,
+      data: {
+        ...(checklist as Record<string, any>),
+        items,
+        itemsBySection,
+        redFlags
+      }
+    })
+  } catch (error) {
+    console.error('Error getting historical checklist:', error)
+    res.status(500).json({ success: false, error: 'Error al obtener checklist histórico' })
+  }
+})
+
+// GET /api/checklist/history/stats/:plantId - Get stats for historical checklists
+router.get('/history/stats/:plantId', (req: Request, res: Response) => {
+  const { plantId } = req.params
+  const { from, to } = req.query as { from?: string, to?: string }
+
+  try {
+    let dateFilter = ''
+    const params: any[] = [plantId]
+
+    if (from && to) {
+      dateFilter = ' AND DATE(check_date) >= DATE(?) AND DATE(check_date) <= DATE(?)'
+      params.push(from, to)
+    }
+
+    const stats = db.prepare(`
+      SELECT
+        COUNT(*) as total_checklists,
+        COUNT(DISTINCT DATE(check_date)) as days_with_checklists,
+        COUNT(DISTINCT operator_name) as unique_operators,
+        SUM(CASE WHEN has_red_flags = 1 THEN 1 ELSE 0 END) as checklists_with_red_flags
+      FROM daily_checklists
+      WHERE plant_id = ?${dateFilter}
+    `).get(...params)
+
+    const recentChecklists = db.prepare(`
+      SELECT dc.*, ct.template_name
+      FROM daily_checklists dc
+      LEFT JOIN checklist_templates ct ON dc.template_id = ct.id
+      WHERE dc.plant_id = ?${dateFilter}
+      ORDER BY dc.check_date DESC
+      LIMIT 10
+    `).all(...params)
+
+    res.json({
+      success: true,
+      data: {
+        stats,
+        recentChecklists
+      }
+    })
+  } catch (error) {
+    console.error('Error getting checklist stats:', error)
+    res.status(500).json({ success: false, error: 'Error al obtener estadísticas' })
   }
 })
 

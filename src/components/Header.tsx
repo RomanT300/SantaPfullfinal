@@ -8,7 +8,8 @@ import { useAppStore } from '../stores/appStore'
 import {
   Moon, Sun, LogOut, Menu, X, Bell, ChevronDown,
   LayoutDashboard, Wrench, AlertTriangle, DollarSign,
-  FileText, Map, Settings, Factory, Home, Activity, ClipboardCheck, Eye, Smartphone, Shirt
+  FileText, Map, Settings, Factory, Home, Activity, ClipboardCheck, Eye, Smartphone, Shirt,
+  Ticket, History
 } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 
@@ -34,9 +35,18 @@ const navItems: NavItem[] = [
       { to: '/textiles-maintenance', label: 'Plan Textiles', icon: <Shirt size={16} /> },
     ]
   },
-  { to: '/checklist', label: 'Checklist', icon: <ClipboardCheck size={16} /> },
+  {
+    to: '/checklist',
+    label: 'Checklist',
+    icon: <ClipboardCheck size={16} />,
+    children: [
+      { to: '/checklist', label: 'Checklist Diario', icon: <ClipboardCheck size={16} /> },
+      { to: '/checklist-history', label: 'Historial', icon: <History size={16} /> },
+    ]
+  },
   { to: '/measurements', label: 'Operacional', icon: <Smartphone size={16} /> },
   { to: '/supervisor', label: 'Supervisor', icon: <Eye size={16} /> },
+  { to: '/tickets', label: 'Tickets', icon: <Ticket size={16} /> },
   { to: '/emergencies', label: 'Emergencias', icon: <AlertTriangle size={16} /> },
   { to: '/opex', label: 'OPEX', icon: <DollarSign size={16} /> },
   { to: '/documents', label: 'Documentos', icon: <FileText size={16} /> },

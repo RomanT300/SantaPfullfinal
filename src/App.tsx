@@ -34,6 +34,8 @@ const ExecutiveDashboard = lazy(() => import("@/pages/ExecutiveDashboard"))
 const DailyChecklist = lazy(() => import("@/pages/DailyChecklist"))
 const SupervisorReports = lazy(() => import("@/pages/SupervisorReports"))
 const ChecklistMeasurements = lazy(() => import("@/pages/ChecklistMeasurements"))
+const Tickets = lazy(() => import("@/pages/Tickets"))
+const ChecklistHistory = lazy(() => import("@/pages/ChecklistHistory"))
 
 // Loading fallback component
 function PageLoader() {
@@ -76,6 +78,8 @@ export default function App() {
               <Route path="/checklist/:plantId" element={<DailyChecklist />} />
               <Route path="/supervisor" element={<SupervisorReports />} />
               <Route path="/measurements" element={<ChecklistMeasurements />} />
+              <Route path="/tickets" element={<Tickets />} />
+              <Route path="/checklist-history" element={<ChecklistHistory />} />
             </Route>
 
             {/* Catch-all redirect */}

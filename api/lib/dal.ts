@@ -1336,3 +1336,359 @@ export const equipmentScheduledMaintenanceDAL = {
     return tasks
   }
 }
+
+/**
+ * Tickets DAL
+ */
+export const ticketsDAL = {
+  generateTicketNumber: () => {
+    const year = new Date().getFullYear()
+    const count = db.prepare(
+      "SELECT COUNT(*) as count FROM tickets WHERE strftime('%Y', created_at) = ?"
+    ).get(String(year)) as { count: number }
+    return `TKT-${year}-${String(count.count + 1).padStart(5, '0')}`
+  },
+
+  getAll: (filters?: {
+    plantId?: string
+    status?: string
+    category?: string
+    priority?: string
+    from?: string
+    to?: string
+    search?: string
+  }) => {
+    let query = `
+      SELECT t.*, p.name as plant_name
+      FROM tickets t
+      LEFT JOIN plants p ON t.plant_id = p.id
+      WHERE 1=1
+    `
+    const params: any[] = []
+
+    if (filters?.plantId) {
+      query += ' AND t.plant_id = ?'
+      params.push(filters.plantId)
+    }
+
+    if (filters?.status) {
+      query += ' AND t.status = ?'
+      params.push(filters.status)
+    }
+
+    if (filters?.category) {
+      query += ' AND t.category = ?'
+      params.push(filters.category)
+    }
+
+    if (filters?.priority) {
+      query += ' AND t.priority = ?'
+      params.push(filters.priority)
+    }
+
+    if (filters?.from) {
+      query += ' AND t.created_at >= ?'
+      params.push(filters.from)
+    }
+
+    if (filters?.to) {
+      query += ' AND t.created_at <= ?'
+      params.push(filters.to)
+    }
+
+    if (filters?.search) {
+      query += ' AND (t.subject LIKE ? OR t.description LIKE ? OR t.ticket_number LIKE ?)'
+      const searchTerm = `%${filters.search}%`
+      params.push(searchTerm, searchTerm, searchTerm)
+    }
+
+    query += ' ORDER BY t.created_at DESC'
+
+    return db.prepare(query).all(...params)
+  },
+
+  getById: (id: string) => {
+    return db.prepare(`
+      SELECT t.*, p.name as plant_name
+      FROM tickets t
+      LEFT JOIN plants p ON t.plant_id = p.id
+      WHERE t.id = ?
+    `).get(id)
+  },
+
+  getByTicketNumber: (ticketNumber: string) => {
+    return db.prepare(`
+      SELECT t.*, p.name as plant_name
+      FROM tickets t
+      LEFT JOIN plants p ON t.plant_id = p.id
+      WHERE t.ticket_number = ?
+    `).get(ticketNumber)
+  },
+
+  create: (ticket: {
+    plantId: string
+    subject: string
+    description: string
+    category: string
+    priority?: string
+    requesterName: string
+    requesterEmail?: string
+    requesterPhone?: string
+    assignedTo?: string
+  }) => {
+    const id = randomUUID()
+    const ticketNumber = ticketsDAL.generateTicketNumber()
+    const stmt = db.prepare(`
+      INSERT INTO tickets (id, plant_id, ticket_number, subject, description, category, priority, requester_name, requester_email, requester_phone, assigned_to)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    stmt.run(
+      id,
+      ticket.plantId,
+      ticketNumber,
+      ticket.subject,
+      ticket.description,
+      ticket.category,
+      ticket.priority || 'medium',
+      ticket.requesterName,
+      ticket.requesterEmail || null,
+      ticket.requesterPhone || null,
+      ticket.assignedTo || null
+    )
+    return ticketsDAL.getById(id)
+  },
+
+  update: (id: string, updates: Partial<{
+    subject: string
+    description: string
+    category: string
+    priority: string
+    status: string
+    requesterName: string
+    requesterEmail: string
+    requesterPhone: string
+    assignedTo: string
+    sentViaEmail: boolean
+    sentViaWhatsapp: boolean
+    emailSentAt: string
+    whatsappSentAt: string
+    resolvedAt: string
+    resolutionNotes: string
+  }>) => {
+    const fields: string[] = []
+    const params: any[] = []
+
+    if (updates.subject !== undefined) { fields.push('subject = ?'); params.push(updates.subject) }
+    if (updates.description !== undefined) { fields.push('description = ?'); params.push(updates.description) }
+    if (updates.category !== undefined) { fields.push('category = ?'); params.push(updates.category) }
+    if (updates.priority !== undefined) { fields.push('priority = ?'); params.push(updates.priority) }
+    if (updates.status !== undefined) { fields.push('status = ?'); params.push(updates.status) }
+    if (updates.requesterName !== undefined) { fields.push('requester_name = ?'); params.push(updates.requesterName) }
+    if (updates.requesterEmail !== undefined) { fields.push('requester_email = ?'); params.push(updates.requesterEmail) }
+    if (updates.requesterPhone !== undefined) { fields.push('requester_phone = ?'); params.push(updates.requesterPhone) }
+    if (updates.assignedTo !== undefined) { fields.push('assigned_to = ?'); params.push(updates.assignedTo) }
+    if (updates.sentViaEmail !== undefined) { fields.push('sent_via_email = ?'); params.push(updates.sentViaEmail ? 1 : 0) }
+    if (updates.sentViaWhatsapp !== undefined) { fields.push('sent_via_whatsapp = ?'); params.push(updates.sentViaWhatsapp ? 1 : 0) }
+    if (updates.emailSentAt !== undefined) { fields.push('email_sent_at = ?'); params.push(updates.emailSentAt) }
+    if (updates.whatsappSentAt !== undefined) { fields.push('whatsapp_sent_at = ?'); params.push(updates.whatsappSentAt) }
+    if (updates.resolvedAt !== undefined) { fields.push('resolved_at = ?'); params.push(updates.resolvedAt) }
+    if (updates.resolutionNotes !== undefined) { fields.push('resolution_notes = ?'); params.push(updates.resolutionNotes) }
+
+    if (fields.length === 0) return ticketsDAL.getById(id)
+
+    fields.push("updated_at = datetime('now')")
+    params.push(id)
+
+    const stmt = db.prepare(`UPDATE tickets SET ${fields.join(', ')} WHERE id = ?`)
+    stmt.run(...params)
+    return ticketsDAL.getById(id)
+  },
+
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM tickets WHERE id = ?')
+    return stmt.run(id)
+  },
+
+  getStats: (plantId?: string) => {
+    let whereClause = ''
+    const params: any[] = []
+    if (plantId) {
+      whereClause = ' WHERE plant_id = ?'
+      params.push(plantId)
+    }
+
+    const stats = db.prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'open' THEN 1 ELSE 0 END) as open,
+        SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END) as in_progress,
+        SUM(CASE WHEN status = 'waiting' THEN 1 ELSE 0 END) as waiting,
+        SUM(CASE WHEN status = 'resolved' THEN 1 ELSE 0 END) as resolved,
+        SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) as closed,
+        SUM(CASE WHEN priority = 'urgent' THEN 1 ELSE 0 END) as urgent,
+        SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) as high,
+        SUM(CASE WHEN sent_via_email = 1 THEN 1 ELSE 0 END) as sent_email,
+        SUM(CASE WHEN sent_via_whatsapp = 1 THEN 1 ELSE 0 END) as sent_whatsapp
+      FROM tickets${whereClause}
+    `).get(...params) as any
+
+    return {
+      total: stats.total || 0,
+      open: stats.open || 0,
+      inProgress: stats.in_progress || 0,
+      waiting: stats.waiting || 0,
+      resolved: stats.resolved || 0,
+      closed: stats.closed || 0,
+      urgent: stats.urgent || 0,
+      high: stats.high || 0,
+      sentEmail: stats.sent_email || 0,
+      sentWhatsapp: stats.sent_whatsapp || 0
+    }
+  }
+}
+
+/**
+ * Ticket Comments DAL
+ */
+export const ticketCommentsDAL = {
+  getByTicketId: (ticketId: string) => {
+    return db.prepare(`
+      SELECT * FROM ticket_comments
+      WHERE ticket_id = ?
+      ORDER BY created_at ASC
+    `).all(ticketId)
+  },
+
+  create: (comment: {
+    ticketId: string
+    authorName: string
+    authorEmail?: string
+    comment: string
+    isInternal?: boolean
+    sentNotification?: boolean
+  }) => {
+    const id = randomUUID()
+    const stmt = db.prepare(`
+      INSERT INTO ticket_comments (id, ticket_id, author_name, author_email, comment, is_internal, sent_notification)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `)
+    stmt.run(
+      id,
+      comment.ticketId,
+      comment.authorName,
+      comment.authorEmail || null,
+      comment.comment,
+      comment.isInternal ? 1 : 0,
+      comment.sentNotification ? 1 : 0
+    )
+    return db.prepare('SELECT * FROM ticket_comments WHERE id = ?').get(id)
+  },
+
+  delete: (id: string) => {
+    const stmt = db.prepare('DELETE FROM ticket_comments WHERE id = ?')
+    return stmt.run(id)
+  }
+}
+
+/**
+ * Daily Checklists DAL - for historical search
+ */
+export const dailyChecklistsDAL = {
+  getByDate: (date: string, plantId?: string) => {
+    let query = `
+      SELECT dc.*, p.name as plant_name, ct.template_name
+      FROM daily_checklists dc
+      LEFT JOIN plants p ON dc.plant_id = p.id
+      LEFT JOIN checklist_templates ct ON dc.template_id = ct.id
+      WHERE DATE(dc.checklist_date) = DATE(?)
+    `
+    const params: any[] = [date]
+
+    if (plantId) {
+      query += ' AND dc.plant_id = ?'
+      params.push(plantId)
+    }
+
+    query += ' ORDER BY dc.checklist_date DESC'
+
+    return db.prepare(query).all(...params)
+  },
+
+  getByDateRange: (from: string, to: string, plantId?: string) => {
+    let query = `
+      SELECT dc.*, p.name as plant_name, ct.template_name
+      FROM daily_checklists dc
+      LEFT JOIN plants p ON dc.plant_id = p.id
+      LEFT JOIN checklist_templates ct ON dc.template_id = ct.id
+      WHERE DATE(dc.checklist_date) >= DATE(?) AND DATE(dc.checklist_date) <= DATE(?)
+    `
+    const params: any[] = [from, to]
+
+    if (plantId) {
+      query += ' AND dc.plant_id = ?'
+      params.push(plantId)
+    }
+
+    query += ' ORDER BY dc.checklist_date DESC'
+
+    return db.prepare(query).all(...params)
+  },
+
+  getById: (id: string) => {
+    return db.prepare(`
+      SELECT dc.*, p.name as plant_name, ct.template_name
+      FROM daily_checklists dc
+      LEFT JOIN plants p ON dc.plant_id = p.id
+      LEFT JOIN checklist_templates ct ON dc.template_id = ct.id
+      WHERE dc.id = ?
+    `).get(id)
+  },
+
+  getItemsByChecklistId: (checklistId: string) => {
+    return db.prepare(`
+      SELECT dci.*, cti.element, cti.activity, cti.section
+      FROM daily_checklist_items dci
+      LEFT JOIN checklist_template_items cti ON dci.template_item_id = cti.id
+      WHERE dci.checklist_id = ?
+      ORDER BY cti.display_order ASC
+    `).all(checklistId)
+  },
+
+  searchByOperator: (operatorName: string, plantId?: string) => {
+    let query = `
+      SELECT dc.*, p.name as plant_name, ct.template_name
+      FROM daily_checklists dc
+      LEFT JOIN plants p ON dc.plant_id = p.id
+      LEFT JOIN checklist_templates ct ON dc.template_id = ct.id
+      WHERE dc.operator_name LIKE ?
+    `
+    const params: any[] = [`%${operatorName}%`]
+
+    if (plantId) {
+      query += ' AND dc.plant_id = ?'
+      params.push(plantId)
+    }
+
+    query += ' ORDER BY dc.checklist_date DESC LIMIT 100'
+
+    return db.prepare(query).all(...params)
+  },
+
+  getAvailableDates: (plantId?: string) => {
+    let query = `
+      SELECT DISTINCT DATE(checklist_date) as date
+      FROM daily_checklists
+      WHERE 1=1
+    `
+    const params: any[] = []
+
+    if (plantId) {
+      query += ' AND plant_id = ?'
+      params.push(plantId)
+    }
+
+    query += ' ORDER BY date DESC LIMIT 365'
+
+    return db.prepare(query).all(...params)
+  }
+}

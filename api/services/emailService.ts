@@ -6,7 +6,7 @@ import nodemailer from 'nodemailer'
 import type { Transporter } from 'nodemailer'
 
 // Email templates
-type EmailTemplate = 'maintenance_reminder' | 'parameter_alert' | 'emergency_alert' | 'task_assignment' | 'task_reminder'
+type EmailTemplate = 'maintenance_reminder' | 'parameter_alert' | 'emergency_alert' | 'task_assignment' | 'task_reminder' | 'ticket_new'
 
 interface MaintenanceReminderData {
   plantName: string
@@ -54,7 +54,19 @@ interface TaskReminderData {
   status: string
 }
 
-type TemplateData = MaintenanceReminderData | ParameterAlertData | EmergencyAlertData | TaskAssignmentData | TaskReminderData
+interface TicketNewData {
+  ticketNumber: string
+  subject: string
+  description: string
+  category: string
+  priority: string
+  plantName: string
+  requesterName: string
+  requesterEmail?: string
+  requesterPhone?: string
+}
+
+type TemplateData = MaintenanceReminderData | ParameterAlertData | EmergencyAlertData | TaskAssignmentData | TaskReminderData | TicketNewData
 
 class EmailService {
   private transporter: Transporter | null = null
@@ -395,6 +407,81 @@ class EmailService {
                   </div>
 
                   <a href="${process.env.APP_URL || 'http://localhost:5173'}/emergencies" class="btn">Ver Tarea</a>
+                </div>
+                <div class="footer">
+                  Sistema PTAR Santa Priscila | Este es un mensaje automático
+                </div>
+              </div>
+            </body>
+            </html>
+          `,
+        }
+      }
+
+      case 'ticket_new': {
+        const d = data as TicketNewData
+        const categoryLabels: Record<string, string> = {
+          mantenimiento: 'Mantenimiento',
+          repuestos: 'Repuestos',
+          insumos: 'Insumos',
+          consulta: 'Consulta',
+          emergencia: 'Emergencia',
+          otro: 'Otro'
+        }
+        const priorityColors: Record<string, string> = { low: '#22c55e', medium: '#f59e0b', high: '#dc2626', urgent: '#7c3aed' }
+        const priorityLabels: Record<string, string> = { low: 'Baja', medium: 'Media', high: 'Alta', urgent: 'Urgente' }
+        return {
+          subject: `🎫 Nuevo Ticket: ${d.ticketNumber} - ${d.subject}`,
+          html: `
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <style>
+                body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+                .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+                .header { background: linear-gradient(135deg, #6366f1, #8b5cf6); color: white; padding: 20px; border-radius: 10px 10px 0 0; }
+                .content { background: #f8fafc; padding: 20px; border: 1px solid #e2e8f0; }
+                .ticket-box { background: white; border: 2px solid #e2e8f0; padding: 20px; margin: 15px 0; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+                .priority-badge { display: inline-block; background: ${priorityColors[d.priority] || '#64748b'}; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
+                .category-badge { display: inline-block; background: #3b82f6; color: white; padding: 4px 12px; border-radius: 20px; font-size: 12px; margin-left: 8px; }
+                .footer { background: #1e293b; color: #94a3b8; padding: 15px; text-align: center; border-radius: 0 0 10px 10px; font-size: 12px; }
+                .btn { display: inline-block; background: #6366f1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; margin-top: 15px; font-weight: bold; }
+                .info-row { display: flex; margin: 8px 0; }
+                .info-label { font-weight: bold; color: #64748b; min-width: 120px; }
+                .ticket-number { font-size: 24px; font-weight: bold; color: #6366f1; }
+              </style>
+            </head>
+            <body>
+              <div class="container">
+                <div class="header">
+                  <h1>🎫 Nuevo Ticket de Soporte</h1>
+                  <p class="ticket-number">${d.ticketNumber}</p>
+                </div>
+                <div class="content">
+                  <p>Se ha registrado un nuevo ticket de soporte en el sistema:</p>
+
+                  <div class="ticket-box">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                      <h2 style="margin: 0; color: #1e293b;">${d.subject}</h2>
+                      <div>
+                        <span class="priority-badge">${priorityLabels[d.priority] || d.priority}</span>
+                        <span class="category-badge">${categoryLabels[d.category] || d.category}</span>
+                      </div>
+                    </div>
+
+                    <div style="background: #f8fafc; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                      <p style="margin: 0; color: #475569;">${d.description}</p>
+                    </div>
+
+                    <div style="margin-top: 15px;">
+                      <div class="info-row"><span class="info-label">🏭 Planta:</span> ${d.plantName}</div>
+                      <div class="info-row"><span class="info-label">👤 Solicitante:</span> ${d.requesterName}</div>
+                      ${d.requesterEmail ? `<div class="info-row"><span class="info-label">📧 Email:</span> ${d.requesterEmail}</div>` : ''}
+                      ${d.requesterPhone ? `<div class="info-row"><span class="info-label">📞 Teléfono:</span> ${d.requesterPhone}</div>` : ''}
+                    </div>
+                  </div>
+
+                  <a href="${process.env.APP_URL || 'http://localhost:5173'}/tickets" class="btn">Ver Ticket</a>
                 </div>
                 <div class="footer">
                   Sistema PTAR Santa Priscila | Este es un mensaje automático
