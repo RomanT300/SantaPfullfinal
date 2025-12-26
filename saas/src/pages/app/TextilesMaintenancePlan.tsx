@@ -103,6 +103,8 @@ export default function TextilesMaintenancePlan() {
   const [logsLoading, setLogsLoading] = useState(false)
   const [showLogForm, setShowLogForm] = useState(false)
   const [generating, setGenerating] = useState(false)
+  const [resetting, setResetting] = useState(false)
+  const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [logForm, setLogForm] = useState({
     maintenanceType: 'preventivo' as 'preventivo' | 'correctivo',
     operation: '',
@@ -157,6 +159,25 @@ export default function TextilesMaintenancePlan() {
       alert(`Error: ${e.message}`)
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const resetYearPlan = async () => {
+    setResetting(true)
+    try {
+      const r = await fetch(`/api/equipment/scheduled/reset/${TEXTILES_ID}/${selectedYear}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      })
+      const json = await r.json()
+      if (!json.success) throw new Error(json.error || 'Error')
+      await loadScheduledTasks()
+      setShowResetConfirm(false)
+      alert(`Se eliminaron ${json.deleted} tareas de mantenimiento para ${selectedYear}`)
+    } catch (e: any) {
+      alert(`Error: ${e.message}`)
+    } finally {
+      setResetting(false)
     }
   }
 
@@ -423,6 +444,14 @@ export default function TextilesMaintenancePlan() {
               >
                 <RefreshCw size={16} className={generating ? 'animate-spin' : ''} />
                 {generating ? 'Generando...' : 'Generar Plan'}
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(true)}
+                disabled={resetting || scheduledTasks.length === 0}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-red-500 to-rose-600 text-white rounded-lg hover:from-red-600 hover:to-rose-700 transition-all shadow-md disabled:opacity-50"
+              >
+                <XCircle size={16} />
+                Resetear Planificación
               </button>
             </div>
           </div>
@@ -995,6 +1024,52 @@ export default function TextilesMaintenancePlan() {
           </div>
         )}
       </div>
+
+      {/* Modal de Confirmación de Reset */}
+      {showResetConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 max-w-md mx-4">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-3 bg-red-100 rounded-full">
+                <AlertTriangle className="text-red-600" size={24} />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Resetear Planificación</h3>
+                <p className="text-sm text-gray-500">Esta acción no se puede deshacer</p>
+              </div>
+            </div>
+            <p className="text-gray-600 mb-6">
+              ¿Está seguro de que desea eliminar todas las tareas programadas para el año <strong>{selectedYear}</strong>?
+              Se eliminarán <strong>{scheduledTasks.length}</strong> tareas.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 font-medium"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={resetYearPlan}
+                disabled={resetting}
+                className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 font-medium flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {resetting ? (
+                  <>
+                    <RefreshCw size={16} className="animate-spin" />
+                    Eliminando...
+                  </>
+                ) : (
+                  <>
+                    <XCircle size={16} />
+                    Confirmar Reset
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

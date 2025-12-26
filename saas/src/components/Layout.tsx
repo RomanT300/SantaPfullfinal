@@ -5,6 +5,7 @@
 import { Outlet, Navigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
+import EmergencyPopup from './EmergencyPopup'
 import { useAuthStore, useHasHydrated } from '../stores/authStore'
 import { useState } from 'react'
 
@@ -44,6 +45,9 @@ export function ProtectedLayout() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Emergency Popup - Shows when new emergencies are reported */}
+      <EmergencyPopup />
+
       {/* Sidebar - Hidden on mobile, shown on lg+ */}
       <div className="hidden lg:block">
         <Sidebar collapsed={sidebarCollapsed} />
